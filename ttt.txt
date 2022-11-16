@@ -1,0 +1,203 @@
+一朵美丽的茉莉🌹★
+
+
+buleoceanbank_20210708_1	41
+
+放款：
+核心长账	-	未平账	2021-07-21	蓝海银行	蓝海银行	202107213050752756925793058
+000LIA2021070000162571    文件里就没有   云窗也没有
+
+
+  
+还款 ：
+7-2   核心短账的，界面上都没有核心借据号，第三方号000LIA2020090000116424在表fund_escrow_info里能查出来20200925702818320281
+
+核心长账 7-4   在相应文件找不到记录  在7-3号的云窗里找到buleoceanbank_20210703_1
+
+
+select
+  *
+from
+  fund_escrow_info
+where
+  core_escrow_no='202106303050733755990462167';平账一致的，核心借据号到库里查，没有数据
+  
+  WITH t1 as( select DISTINCT * from hdp_jinrong_tech_defaultdb.capital_icbc_account 
+  where create_time in('${today1}','${tomorrow1}','${ttomorrow1}') and batch_id='${batchId}' 
+  and transType=1 ),t2 as ( --托管账outer正常还款 
+  select DISTINCT taskDetail.core_escrow_no, taskDetail.third_escrow_no, escrow.busi_escrow_no,
+  (CASE WHEN (taskDetail.repay_type='ADV_SETTLE_REPAY'OR taskDetail.repay_type='BUYBACK') 
+  then 'A' else taskDetail.start_term_num end) as term_no, 
+  taskDetail.start_term_num, taskDetail.paid_prin, taskDetail.paid_int, 
+  taskDetail.paid_pen, taskDetail.paid_comp, taskDetail.paid_txn_fee, taskDetail.paid_amt, 
+  taskDetail.repay_time, term.remain_prin, taskDetail.detail_no, escrow.total_terms, 
+  term.schd_prin, term.schd_int, term.schd_amt, term.schd_repay_date, escrow.lend_amt, repCustLoan.PRODUCT_CD,
+  DATEDIFF(term.paid_repay_date,term.schd_repay_date) as over_date,--逾期天数 
+  (Case when (term.repay_type='NORMAL_REPAY' OR term.repay_type='ADV_REPAY') 
+  then 1 when term.repay_type='ADV_SETTLE_REPAY' then 2 when term.repay_type='OVERDUE_REPAY'
+  then 4 when term.repay_type='COMP_REPAY' then 7 when term.repay_type='BUYBACK' then 8 else 0 end) 
+  as repay_way,--还款类型 (case when taskDetail.repay_type='BUYBACK' then 3 
+  when taskDetail.repay_type='COMP_REPAY' then 4 else 1 end) as transType,--3为回购4为代偿1为还款
+  get_json_object(task.detail_info,'$.repayTotalInfos[0].payOrderId') as payOrderId, 
+  get_json_object(task.detail_info,'$.repayTotalInfos[0].orderAmt') as realAmt 
+  FROM hdp_jinrong_qiangui_defaultdb.itf_cw_t_fund_repay_task_detail taskDetail LEFT JOIN 
+  hdp_jinrong_qiangui_defaultdb.itf_db58_escrowledger_fund_escrow_term_view term on term.escrow_no=taskDetail.escrow_no 
+  and term.term_num=taskDetail.start_term_num left join hdp_jinrong_qiangui_defaultdb.itf_cw_t_fund_escrow_info escrow 
+  on escrow.escrow_no=taskDetail.escrow_no left join 
+  hdp_jinrong_qiangui_defaultdb.itf_db58_escrowledger_fund_repay_detail_view detail 
+  on taskDetail.repay_task_no=detail.relate_task_no left join hdp_jinrong_qiangui_defaultdb.itf_cw_t_fund_repay_task task 
+  on task.task_no=taskDetail.repay_task_no left join hdp_jinrong_qiangui_defaultdb.itf_new_hx_db58_loanpost_rep_cust_loan_view repCustLoan 
+  on repCustLoan.bill_no=taskDetail.core_escrow_no and repCustLoan.daystr='${yesterday1}' where taskDetail.daystr='${yesterday1}' 
+  and term.daystr='${yesterday1}' and detail.daystr='${yesterday1}' and escrow.daystr='${yesterday1}' 
+  and task.daystr='${yesterday1}' and term.fund_post_date='${yestodayBillDate}' and escrow.capital_no 
+  in ('fcode_bank_blueocean') and detail.deal_status='S' ),t3 as( select 0, '${batchId}' as batch_id,--批次号 
+  (CASE WHEN t1.amt = t2.paid_amt THEN 200 WHEN t1.receiptId IS NULL THEN 302 WHEN t2.detail_no IS NULL THEN 301 ELSE 300 END ) 
+  AS result, (CASE WHEN t1.amt = t2.paid_amt THEN 200 ELSE 300 END )AS error_type, 
+  (CASE WHEN t1.amt = t2.paid_amt THEN 200 ELSE 300 END ) AS status, IFNULL(t1.receiptId,t2.third_escrow_no) 
+  as order_id_connect,--内部关联流水号 IFNULL(t2.third_escrow_no,'-') as order_id_third,--资方放款借据号 IFNULL(t2.core_escrow_no,'-') 
+  as order_id_core,--核心放款借据号 IFNULL(t2.repay_time,t1.accounting_date) as trans_finish_time_inner,--实还款日 
+  IFNULL(t2.schd_repay_date,t1.accounting_date) as plan_repay_time,--计划还款时间 IFNULL(t2.paid_amt,0) as pay_amt_inner,--还款总额 
+  IFNULL(t1.amt,0) as pay_amt_outer, IFNULL(t2.transType,t1.transType) as trans_type_inner, IFNULL(t2.PRODUCT_CD,'-') as product_cd, 
+  IFNULL(t2.third_escrow_no,t1.receiptId) as receipt_id,--放款借据号 IFNULL(t2.total_terms,0) as term_no,--总期数 IFNULL(t2.start_term_num,0) 
+  as current_term_no,--当前期 IFNULL(t2.remain_prin,0) as remain_repay_amt, IFNULL(t2.schd_amt,0) as plan_repay_total_amt, 
+  IFNULL(t2.schd_prin,0) as plan_repay_prin, IFNULL(t2.schd_int,0) as plan_repay_int, 0 as plan_repay_fee,0 as plan_repay_other_fee, 
+  ( CASE WHEN t2.over_date is null THEN 0 when t2.over_date<=0 Then 0 ELSE t2.over_date END ) as over_date,--逾期天数 0 
+  as plan_repay_over_penalty_amt,0 as plan_advance_repay_amt, IFNULL(t2.paid_amt,0) as real_repay_total_amt, 
+  IFNULL(t2.paid_prin,0) as real_repay_prin, IFNULL(t2.paid_int,0) as real_repay_int, 
+  IFNULL(t2.paid_txn_fee,0) as real_repay_fee,0 as real_repay_other_fee, IFNULL(t2.paid_pen,0) as real_repay_over_penalty_amt,
+  0 as real_advance_repay_amt, IFNULL(t2.repay_way,0) as repay_way, 0 as pay_channel_id, IFNULL(t2.realAmt,0) as bill_view_amt,
+  IFNULL(t2.lend_amt,0) as lend_amt, 'buleocean' as capital_code, FROM_UNIXTIME( UNIX_TIMESTAMP( ) ) AS create_time, 
+  FROM_UNIXTIME( UNIX_TIMESTAMP( ) ) AS update_time, '' as remark, 
+  IFNULL(t1.accounting_date,FROM_UNIXTIME(unix_timestamp('1970-01-01 00:00:00','yyyy-MM-dd HH:mm:ss'))) as fund_post_time,--资方入账日
+  '' as pay_order_id --支付流水号 from t1 FULL JOIN t2 on t1.receiptId=t2.third_escrow_no and t1.term_no=t2.term_no ) select * from t3
+
+CREATE TABLE `recon_batches_info` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `batch_id` varchar(100) NOT NULL DEFAULT '' COMMENT '批次号：lianlian_20190526_1',
+  `stage` int(255) NOT NULL DEFAULT '1' COMMENT '对账阶段1（初始）、2（外侧数据加载完成等待对账）、3（对账完成）',
+  `config_id` bigint(20) NOT NULL DEFAULT '0' COMMENT '渠道id',
+  `repeat_count` int(255) NOT NULL DEFAULT '0' COMMENT '重试次数',
+  `create_time` datetime NOT NULL DEFAULT '1970-01-01 00:00:00',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `stauts` int(11) NOT NULL DEFAULT '1' COMMENT '1:成功2：处理中3：失败',
+  `job_id` bigint(20) NOT NULL DEFAULT '0' COMMENT '主任务Id',
+  `error_msg` varchar(255) NOT NULL DEFAULT '',
+  `data_count` bigint(20) NOT NULL DEFAULT '0' COMMENT '数据条数',
+  PRIMARY KEY (`id`),
+  KEY `idx_batch_id` (`batch_id`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=10979 DEFAULT CHARSET=utf8 COMMENT='对账批次表'
+
+
+
+CREATE TABLE `recon_check_result_consumer_finance` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT '主键',
+  `batch_id` varchar(100) NOT NULL DEFAULT '' COMMENT '批次号：lianlian_20190526_1',
+  `result` int(11) NOT NULL DEFAULT '0' COMMENT '对账结果(200(一致)、300（不一致）、301（核心短账）、302(核心长账))',
+  `error_type` int(11) NOT NULL DEFAULT '0' COMMENT '不一致原因（300（金额不一致）200为一致',
+  `status` int(11) NOT NULL DEFAULT '0' COMMENT '平账状态（200（不需要平账）（201）（手工平账）300（未平账）400（隔日再平））',
+  `order_id_connect` varchar(100) NOT NULL DEFAULT '' COMMENT '用于对账关联流水号',
+  `order_id_third` varchar(100) NOT NULL DEFAULT '' COMMENT '三方流水号',
+  `order_id_core` varchar(100) NOT NULL DEFAULT '' COMMENT '核心借据号',
+  `trans_time` datetime NOT NULL DEFAULT '1970-01-01 00:00:00' COMMENT '交易完成时间,三方',
+  `plan_repay_time` date NOT NULL DEFAULT '1970-01-01' COMMENT '计划还款时间',
+  `pay_amt_inner` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '支付金额，核心，单位元',
+  `pay_amt_outer` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '支付金额，三方，单位元',
+  `trans_type` int(10) NOT NULL DEFAULT '0' COMMENT '交易类型 1:还款 3回购 4代偿',
+  `product_cd` varchar(255) NOT NULL DEFAULT '' COMMENT '贷款产品编号',
+  `receipt_id` varchar(255) NOT NULL DEFAULT '' COMMENT '业务订单号',
+  `term_no` int(10) NOT NULL DEFAULT '0' COMMENT '总期数',
+  `current_term_no` int(10) NOT NULL DEFAULT '0' COMMENT '当前期数',
+  `remain_repay_amt` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '剩余还款在贷本金（贷款本金-已还本金）',
+  `plan_repay_total_amt` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '当期用户应还总额(本金+利息+费用)',
+  `plan_repay_prin` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '当期用户应还本金',
+  `plan_repay_int` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '当期用户应还利息',
+  `plan_repay_fee` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '当期用户应还手续费用(服务费+分期服务费)',
+  `plan_repay_other_fee` decimal(20,2) unsigned NOT NULL COMMENT '当期用户应还其他费用',
+  `over_date` int(10) NOT NULL DEFAULT '0' COMMENT '逾期天数',
+  `plan_repay_over_penalty_amt` decimal(20,2) NOT NULL COMMENT '当期用户应还罚息',
+  `plan_advance_repay_amt` decimal(20,2) NOT NULL COMMENT '当前用户应还提前还款费用',
+  `real_repay_total_amt` decimal(20,2) NOT NULL COMMENT '实收还款总额',
+  `real_repay_prin` decimal(20,2) NOT NULL COMMENT '实收还款本金',
+  `real_repay_int` decimal(20,2) NOT NULL COMMENT '实收还款利息',
+  `real_repay_fee` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '实收还款服务费用',
+  `real_repay_other_fee` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '实收还款其他费用',
+  `real_repay_over_penalty_amt` decimal(20,2) NOT NULL COMMENT '实收还款罚息',
+  `real_advance_repay_amt` decimal(20,2) NOT NULL COMMENT '实收还款提前还款费用',
+  `repay_way` int(20) NOT NULL COMMENT '此次还款的的方式，包含1、正常还款；2、提前结清；3、提前还当期；4、逾期还款；5、退款；6、提前部分还款；7、逾期代偿；8、逾期回购',
+  `pay_channel_id` varchar(255) NOT NULL COMMENT '支付渠道产品id',
+  `bill_view_amt` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '对账单显示总金额(一般减去担保服务费)',
+  `lend_total_amt` decimal(20,2) NOT NULL DEFAULT '0.00' COMMENT '贷款总本金',
+  `capital_code` varchar(50) NOT NULL DEFAULT '',
+  `create_time` datetime NOT NULL DEFAULT '1970-01-01 00:00:00' COMMENT '入库时间，也可做对账时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `remark` varchar(255) NOT NULL DEFAULT '' COMMENT '备注',
+  `fund_post_time` date NOT NULL DEFAULT '1970-01-01' COMMENT '资方入账时间',
+  `pay_order_id` varchar(50) NOT NULL DEFAULT '' COMMENT '支付订单号',
+  PRIMARY KEY (`id`),
+  KEY `idx_batch_id` (`batch_id`) USING BTREE,
+  KEY `idx_result_create_time` (`result`,`create_time`),
+  KEY `idx_order_id_connect` (`order_id_connect`),
+  KEY `idx_order_id_core` (`order_id_core`),
+  KEY `idx_capital_create_trans_type` (`create_time`,`capital_code`,`trans_time`,`trans_type`) USING BTREE,
+  KEY `idx_trans_capital` (`trans_time`,`capital_code`) USING BTREE
+) ENGINE=InnoDB AUTO_INCREMENT=14866340 DEFAULT CHARSET=utf8mb4 COMMENT='财信对账结果表'
+	
+CREATE TABLE `fund_escrow_info` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT COMMENT 'id',
+  `escrow_no` varchar(64) NOT NULL COMMENT '托管账信息编号',
+  `lend_order_no` varchar(64) NOT NULL COMMENT '放款订单编号',
+  `third_escrow_no` varchar(64) NOT NULL COMMENT '三方账单编号',
+  `busi_escrow_no` varchar(64) NOT NULL COMMENT '业务账单编号',
+  `core_escrow_no` varchar(64) NOT NULL COMMENT '核心账单编号',
+  `assets_no` varchar(16) NOT NULL COMMENT '资产方编号',
+  `capital_no` varchar(64) NOT NULL COMMENT '资金方编号',
+  `lend_amt` decimal(15,2) NOT NULL DEFAULT '0.00' COMMENT '放款金额',
+  `lend_date` date NOT NULL COMMENT '放款日',
+  `value_date` date NOT NULL COMMENT '起息日',
+  `expire_date` date DEFAULT NULL COMMENT '到期日',
+  `term_num` int(11) NOT NULL COMMENT '当前期',
+  `total_terms` int(11) NOT NULL COMMENT '总期数',
+  `paid_prin` decimal(15,2) NOT NULL COMMENT '已还本金',
+  `settle_date` date DEFAULT NULL COMMENT '结清日',
+  `escrow_type` varchar(32) NOT NULL COMMENT '托管账类型',
+  `escrow_status` varchar(32) NOT NULL COMMENT '托管账状态',
+  `exist_compen` int(1) NOT NULL DEFAULT '0' COMMENT '是否存在代偿',
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `update_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (`id`) USING BTREE,
+  UNIQUE KEY `uniq_escrow_no` (`escrow_no`) USING BTREE,
+  UNIQUE KEY `uniq_third_escrow_no` (`third_escrow_no`) USING BTREE,
+  UNIQUE KEY `uniq_core_escrow_no` (`core_escrow_no`) USING BTREE,
+  KEY `idx_lend_order_no` (`lend_order_no`) USING BTREE,
+  KEY `idx_busi_escrow_no` (`busi_escrow_no`)
+) ENGINE=InnoDB AUTO_INCREMENT=1127590 DEFAULT CHARSET=utf8 COMMENT='托管账信息'
+	{
+  "okFileName":"001_000UC010005337849_${today1}_E002OK.txt",
+  "tails": [
+    "F|${data.size()}"
+  ],
+  "okBodys": [
+    "H|${fc:ceil(fc:random()*9999)}${df:format(\"yyyyMMdd\",-1)}${df:format(\"yyyyMMdd\",0)}|000UC010005337849|001_000UC010005337849_${today1}_E002OK.txt|E002|${data.size()}|${today1}",
+   "D|001_000UC010005337849_${today1}_E002.txt|",
+    "F|${data.size()}"
+  ],
+  "heads": [
+    "H|${fc:ceil(fc:random()*9999)}${df:format(\"yyyyMMdd\",-1)}${df:format(\"yyyyMMdd\",0)}|000UC010005337849|001_000UC010005337849_${today1}_E002.txt|E002|${data.size()}|${decimal:sum(data.stream().map(b->b.getTradeAmt()).toList()).toPlainString()}|${today1}||||"
+ ]
+}
+
+
+{
+	"okFileName":"001_000UC010000224079_${today1}_E002OK.txt",
+	"tails": [
+		"F|${data.size()}"
+	],
+	"okBodys": [
+		"H|${fc:ceil(fc:random()*9999)}${df:format(\"yyyyMMdd\",-1)}${df:format(\"yyyyMMdd\",0)}|000UC010000224079|001_000UC010000224079_${today1}_E002.txt|E002|${data.size()}|${today1}",
+		"D|001_000UC010000224079_${today1}_D002.txt|",
+		"F|${data.size()}"
+	],
+	"heads": [
+		"H|${fc:ceil(fc:random()*9999)}${df:format(\"yyyyMMdd\",-1)}${df:format(\"yyyyMMdd\",0)}|000UC010000224079|000UC010000224079_${today1}_E002.txt|E002|${data.size()}|${decimal:sum(data.stream().map(b->b.getTradeAmt()).toList()).toPlainString()}|${today1}||||"
+	]
+}
