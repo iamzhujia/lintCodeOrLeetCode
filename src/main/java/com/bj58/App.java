@@ -16,7 +16,7 @@ public class App
     {
        float k = 1e-6f;
        System.out.println(k);
-       System.out.println(maxSub(""));
+       System.out.println(maxSub("2222"));
         System.out.println(maxSub("123456"));
         System.out.println(maxSub("123446"));
         System.out.println(maxSub("1234456789"));

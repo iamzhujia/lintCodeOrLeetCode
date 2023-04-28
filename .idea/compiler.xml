@@ -9,8 +9,5 @@
         <module name="zhujia" />
       </profile>
     </annotationProcessing>
-    <bytecodeTargetLevel>
-      <module name="zhujia" target="8" />
-    </bytecodeTargetLevel>
   </component>
 </project>
