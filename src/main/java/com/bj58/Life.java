@@ -5,6 +5,7 @@ public class Life {
 
     }
     public void gameOfLife(int[][] board) {
+
         for(int i = 0; i < board.length; ++i){
             for(int j = 0; j < board[i].length; ++j){
                 update(board,board[i][j], i, j);
